@@ -60,29 +60,49 @@ type Server struct {
 	timer          *timer2.Timer // 32 * 2048
 }
 
+/*
+*
+创建一个名为Server的实例，其中包含了一些属性和方法。具体功能如下：
+
+1. 通过传入的config.Config类型c初始化Server实例s的各个属性。
+
+2. 将c.KeyFingerprint转换为64位无符号整型keyFingerprint，并根据c.KeyFile和keyFingerprint创建handshake对象并将其赋值给Server实例s的handshake属性。
+
+3. 如果在以上过程中出现了错误，则程序会panic抛出异常。
+
+4. 使用cache.NewLRUCache函数创建一个容量为10MB的LRUCache，并将其赋值给Server实例s的cache属性。
+
+5. 调用NewSession函数，创建一个Session实例并将其赋值给Server实例s的session属性。
+
+6. 将c指针赋值给Server实例s的c属性。
+
+7. 返回Server实例s。
+*/
 func New(c config.Config) *Server {
 	var (
 		err error
 		s   = new(Server)
 	)
 
-	s.timer = timer2.NewTimer(1024)
+	// 创建一个名为s的Server实例，并初始化其各个属性
+	s.timer = timer2.NewTimer(1024)            // 初始化timer属性
+	s.authSessionMgr = NewAuthSessionManager() // 初始化authSessionMgr属性
 
-	s.authSessionMgr = NewAuthSessionManager()
-
+	// 将c.KeyFingerprint转换为64位无符号整型keyFingerprint，并根据c.KeyFile和keyFingerprint创建handshake对象并将其赋值给Server实例s的handshake属性
 	keyFingerprint, err := strconv.ParseUint(c.KeyFingerprint, 10, 64)
 	if err != nil {
-		panic(err)
+		panic(err) // 如果转换过程出现错误，程序抛出异常
 	}
 	s.handshake, err = newHandshake(c.KeyFile, keyFingerprint,
 		func(ctx context.Context, key *mtproto.AuthKeyInfo, salt *mtproto.FutureSalt, expiresIn int32) error {
+			// 根据key.AuthKeyId从session中获取对应的客户端连接sessClient
 			sessClient, err2 := s.session.getSessionClient(strconv.FormatInt(key.AuthKeyId, 10))
 			if err2 != nil {
 				logx.Errorf("getSessionClient error: %v, {authKeyId: %d}", err, key.AuthKeyId)
 				return err2
 			}
 
-			// Fix by @wuyun9527, 2018-12-21
+			// 调用sessClient的SessionSetAuthKey方法，设置认证密钥信息
 			var (
 				rB *mtproto.Bool
 			)
@@ -91,6 +111,7 @@ func New(c config.Config) *Server {
 				FutureSalt: salt,
 				ExpiresIn:  expiresIn,
 			})
+			// 如果调用过程出现错误，则记录日志并返回err2
 			if err2 != nil {
 				logx.Errorf("saveAuthKeyInfo not successful - auth_key_id:%d, err:%v", key.AuthKeyId, err2)
 				return err2
@@ -99,6 +120,7 @@ func New(c config.Config) *Server {
 				err2 = fmt.Errorf("saveAuthKeyInfo error")
 				return err2
 			} else {
+				// 将key对应的认证密钥信息加入到authKeys中
 				s.PutAuthKey(&mtproto.AuthKeyInfo{
 					AuthKeyId:          key.AuthKeyId,
 					AuthKey:            key.AuthKey,
@@ -110,17 +132,22 @@ func New(c config.Config) *Server {
 			return nil
 		})
 
-	// s.handshake, err = newHandshake(c.KeyFile, keyFingerprint)
+	// 如果在以上过程中出现了错误，则程序会panic抛出异常。
 	if err != nil {
 		panic(err)
 	}
 
+	// 使用cache.NewLRUCache函数创建一个容量为10MB的LRUCache，并将其赋值给Server实例s的cache属性。
+	// 最近最少使用的缓存
 	s.cache = cache.NewLRUCache(10 * 1024 * 1024) // cache capacity: 10MB
-	// s.pool = goroutine.Default()
 
+	// 调用NewSession函数，创建一个Session实例并将其赋值给Server实例s的session属性。
 	s.session = NewSession(c)
+
+	// 将指向c的指针赋值给Server实例s的c属性。
 	s.c = &c
 
+	// 返回Server实例s。
 	return s
 }
 
