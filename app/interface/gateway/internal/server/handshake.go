@@ -214,6 +214,13 @@ func newHandshake(keyFile string, keyFingerprint uint64, createdCB keyCreatedF) 
 //	}
 //}
 
+/**
+当收到一个 TLReqPq 类型的请求时，首先检查其中的 Nonce 是否合法。如果 Nonce 不合法，则返回错误并记录日志；
+否则根据收到的 Nonce 生成一个 ServerNonce，并将之前生成的 pq 和服务端公钥指纹添加到 ResPQ 中作为响应数据，
+最后将 ResPQ 返回给客户端。此外，还可以看到一些注释掉的代码，用于缓存客户端 Nonce 和 ServerNonce 的值。
+
+总之，这段代码主要实现了在服务端处理客户端发送来的请求，并进行必要的合法性检查和生成响应数据的操作。
+*/
 // req_pq#60469778 nonce:int128 = ResPQ;
 func (s *handshake) onReqPq(request *mtproto.TLReqPq) (*mtproto.TLResPQ, error) {
 	logx.Infof("req_pq#60469778 - {\"request\":%s", request.DebugString())
@@ -243,6 +250,15 @@ func (s *handshake) onReqPq(request *mtproto.TLReqPq) (*mtproto.TLResPQ, error) 
 	return resPQ, nil
 }
 
+/**
+当收到一个 TLReqPqMulti 类型的请求时，首先检查其中的 Nonce 是否合法。如果 Nonce 不合法，则返回错误并记录日志；否则根据收到的
+Nonce 生成一个 ServerNonce，并将之前生成的 pq 和服务端公钥指纹添加到 ResPQ 中作为响应数据，最后将 ResPQ 返回给客户端。
+此外，还可以看到一些注释掉的代码，用于缓存客户端 Nonce 和 ServerNonce 的值。
+
+由于这段代码与上一段代码非常相似，因此它们的功能也基本一致，都是在服务端处理客户端发送来的请求，
+并进行必要的合法性检查和生成响应数据的操作。区别在于，这个函数处理的是 TLReqPqMulti 类型的请求，
+而不是 TLReqPq 类型的请求，因此可以看到函数名和注释中的差异。
+*/
 // req_pq_multi#be7e8ef1 nonce:int128 = ResPQ;
 func (s *handshake) onReqPqMulti(request *mtproto.TLReqPqMulti) (*mtproto.TLResPQ, error) {
 	logx.Infof("req_pq_multi#be7e8ef1 - {\"request\":%s", request.DebugString())
@@ -274,6 +290,11 @@ func (s *handshake) onReqPqMulti(request *mtproto.TLReqPqMulti) (*mtproto.TLResP
 	return resPQ, nil
 }
 
+/**
+这段代码是实现Telegram协议中的一种握手流程。具体来说，函数onReqDHParams()用于处理客户端发送过来的请求，
+并返回服务端响应的结果。其中，请求中包含了加密后的数据以及一些参数，服务端需要对这些参数进行验证并解密出原始数据。
+接着，服务端使用这些参数和数据再进行一些计算，最终生成响应并返回给客户端。具体实现细节可以参考代码注释。
+*/
 // req_DH_params#d712e4be nonce:int128 server_nonce:int128 p:string q:string public_key_fingerprint:long encrypted_data:string = Server_DH_Params;
 func (s *handshake) onReqDHParams(ctx *HandshakeStateCtx, request *mtproto.TLReq_DHParams) (*mtproto.Server_DH_Params, error) {
 	logx.Infof("req_DH_params#d712e4be - state: {%s}, request: %s", ctx.DebugString(), request.DebugString())
@@ -527,6 +548,13 @@ func (s *handshake) onReqDHParams(ctx *HandshakeStateCtx, request *mtproto.TLReq
 	return serverDHParamsOk.To_Server_DH_Params(), nil
 }
 
+/**
+这段代码是实现Telegram协议中的一种握手流程。具体来说，函数onSetClientDHParams()用于处理客户端发送过来的请求，并返回服务端响应的结果。其中，请求中包含了加密后的数据以及一些参数，服务端需要对这些参数进行验证并解密出原始数据。接着，服务端使用这些参数和数据再进行一些计算，最终生成响应并返回给客户端。
+
+在函数中，首先会对传输过来的Nonce、ServerNonce等参数进行校验，以确保请求的合法性。然后，服务端从加密数据中解密出原始数据，并对其进行进一步的解析和处理，生成authKey等信息以进行后续通信。最后，服务端根据验证结果返回不同类型的响应，如果保存authKey成功则返回TLDhGenOk类型的消息，否则返回TLDhGenRetry类型的消息。
+
+具体实现细节可以参考代码注释。
+*/
 // set_client_DH_params#f5045f1f nonce:int128 server_nonce:int128 encrypted_data:string = Set_client_DH_params_answer;
 func (s *handshake) onSetClientDHParams(ctx *HandshakeStateCtx, request *mtproto.TLSetClient_DHParams) (*mtproto.SetClient_DHParamsAnswer, error) {
 	logx.Infof("set_client_DH_params#f5045f1f - state: {%s}, request: %s", ctx.DebugString(), request.DebugString())
@@ -645,6 +673,13 @@ func (s *handshake) onSetClientDHParams(ctx *HandshakeStateCtx, request *mtproto
 	}
 }
 
+/**
+这段代码实现了Telegram协议中的一种消息确认机制。具体来说，函数onMsgsAck()用于处理客户端发送过来的确认消息，并将服务端的状态更新为相应的状态。
+
+在函数中，首先会输出日志以便进行调试和追踪。然后，根据服务端当前的状态，更新其状态为相应的ACK状态。如果服务端当前的状态不是预期的状态，则返回错误信息提示状态异常。
+
+具体实现细节可以参考代码注释。
+*/
 // msgs_ack#62d6b459 msg_ids:Vector<long> = MsgsAck;
 func (s *handshake) onMsgsAck(state *HandshakeStateCtx, request *mtproto.TLMsgsAck) error {
 	logx.Infof("msgs_ack#62d6b459 - state: {%s}, request: %s", state.DebugString(), request.DebugString())
@@ -663,6 +698,16 @@ func (s *handshake) onMsgsAck(state *HandshakeStateCtx, request *mtproto.TLMsgsA
 	return nil
 }
 
+/*
+*
+这段代码实现了Telegram协议中关于authKey的一些操作。具体来说，函数saveAuthKeyInfo()用于保存生成的authKey信息，并调用回调函数将更新后的服务端状态写入数据库；函数calcNewNonceHash()用于根据newNonce和authKey计算出一个哈希值；函数checkSha1()用于验证数据的SHA-1哈希值是否正确。
+
+在函数saveAuthKeyInfo()中，首先根据newNonce和serverNonce计算出salt值，并使用当前时间戳生成一个TLFutureSalt消息。然后，创建一个AuthKeyInfo消息，将生成的authKey等信息添加到其中。最后，调用回调函数将更新后的服务端状态写入数据库，并返回操作成功或失败的标志位。
+
+在函数calcNewNonceHash()中，首先将newNonce和一个字节b组合成一个新的字节数组，并计算出sha1D值。接着，再将新的字节数组和sha1D值组合起来计算出sha1E值，并返回最后16个字节作为哈希值。
+
+在函数checkSha1()中，传入的数据data包含待验证的内容和其SHA-1哈希值。函数首先获取SHA-1哈希值，并对原始数据进行填充，逐一验证每一种可能的填充方式，看是否能够得到相同的SHA-1哈希值。如果存在合法的填充方式，则返回true，否则返回false。
+*/
 func (s *handshake) saveAuthKeyInfo(ctx *HandshakeStateCtx, key *mtproto.AuthKeyInfo) bool {
 	var (
 		salt       = int64(0)
@@ -699,6 +744,10 @@ func (s *handshake) saveAuthKeyInfo(ctx *HandshakeStateCtx, key *mtproto.AuthKey
 	return true
 }
 
+/*
+*
+函数calcNewNonceHash()用于根据newNonce和authKey计算出一个哈希值
+*/
 func calcNewNonceHash(newNonce, authKey []byte, b byte) []byte {
 	authKeyAuxHash := make([]byte, len(newNonce))
 	copy(authKeyAuxHash, newNonce)
@@ -710,6 +759,10 @@ func calcNewNonceHash(newNonce, authKey []byte, b byte) []byte {
 	return authKeyAuxHash[len(authKeyAuxHash)-16:]
 }
 
+/*
+*
+函数checkSha1()用于验证数据的SHA-1哈希值是否正确。
+*/
 func checkSha1(data []byte, maxPaddingLen int) bool {
 	var (
 		dataLen  = len(data)

@@ -315,6 +315,17 @@ func (s *Server) OnConnectionClosed(conn *net2.TcpConnection) {
 }
 
 // //////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+这是一个 Go 语言编写的函数，它是一个 TCP 服务器的一部分。当该服务器接收到未加密的数据包时，将调用该函数对数据进行处理。下面是该函数的主要功能：
+
+1. 检查数据长度是否小于 8，如果小于 8 则返回错误信息。
+2. 解析从第 8 个字节开始的数据，并根据解析出来的对象类型执行相应的操作。支持的对象类型包括 TLReqPq, TLReqPqMulti, TLReq_DHParams,
+	TLSetClient_DHParams 和 TLMsgsAck。
+3. 对执行操作后得到的结果进行序列化，并发送给客户端。
+
+具体而言，该函数实现了与 Telegram 的安全认证过程相关的功能。在接收到客户端发来的请求（如 TLReqPq 或 TLReq_DHParams）后，服务器会对请求进行解析，并根据请求内容生成相应的响应。
+最后，服务器将响应序列化后发送给客户端。该过程会不断重复，直到客户端和服务器完成安全认证并建立起连接。
+*/
 func (s *Server) onUnencryptedMessage(ctx *connContext, conn *net2.TcpConnection, mmsg *mtproto.MTPRawMessage) error {
 	logx.Info("receive unencryptedRawMessage: {peer: %s, ctx: %s, mmsg: %s}", conn, ctx.DebugString(), mmsg.DebugString())
 
@@ -402,6 +413,24 @@ func (s *Server) onUnencryptedMessage(ctx *connContext, conn *net2.TcpConnection
 	return conn.Send(&mtproto.MTPRawMessage{Payload: rData})
 }
 
+/*
+*
+这是一段用于对收到的加密消息进行处理的代码。在 Telegram 服务器接收到客户端的加密消息后会回调这个函数以进行解密和处理。下面是具体的代码分析：
+
+1. 通过 authKey 对加密消息进行解密，获取解密后的消息内容。
+
+2. 从解密后的消息中获取到 sessionId 和 authKeyId，其中 sessionId 是通过 Little Endian 编码方式存储在消息内容中的。
+
+3. 根据 sessionId 的值判断这个会话是一个新会话还是一个已经存在的会话。
+
+4. 获取到与 authKeyId 对应的会话客户端 sessClient。
+
+5. 如果这是一个新会话，则根据 authKey、sessionId、连接 ID 等信息创建一个新的会话，并将消息发送到与客户端对应的服务端。
+
+6. 如果这是一个已经存在的会话，则根据 authKey、sessionId、连接 ID 等信息将消息发送到与客户端对应的服务端。
+
+7. 处理完毕后返回 nil，表示处理成功。
+*/
 func (s *Server) onEncryptedMessage(ctx *connContext, conn *net2.TcpConnection, authKey *authKeyUtil, mmsg *mtproto.MTPRawMessage) error {
 	mtpRwaData, err := authKey.AesIgeDecrypt(mmsg.Payload[8:8+16], mmsg.Payload[24:])
 	if err != nil {
