@@ -24,6 +24,16 @@ handshake.go 是 TeamGram 服务器的一部分，它实现了 WebSocket 连接�
 客户端接收到服务器回应后，会根据规定的算法将服务器返回的 "Sec-WebSocket-Key" 与一个固定的字符串进行拼接并进行 SHA1 加密，然后将结果以 Base64 编码后再通过头部的 "Sec-WebSocket-Accept" 字段发送给服务器。
 服务器验证客户端发送的 "Sec-WebSocket-Accept" 字段是否正确，如果不正确则说明握手失败，关闭连接。如果正确则将握手成功的消息发送给客户端，并开始正式的数据传输。
 具体代码实现细节可以参考 handshake.go 的注释和代码实现。
+
+
+这是一个 Golang 语言编写的文件，主要用于 Teamgram 项目中的服务器握手过程。以下是对该文件内容的简要分析：
+
+1. 导入了一些必要的包，如 `crypto/rand`、`encoding/json` 和 `time`。
+2. 定义了 `HandshakePayload` 结构体，用于存储握手请求和响应的数据。其中包括了版本号、时间戳等信息。
+3. 定义了 `HandshakeResponse` 结构体，用于解析握手响应的 JSON 数据。
+4. 定义了 `handshake` 函数，用于发送握手请求并解析响应。在函数内部，首先生成一份随机数作为握手请求的 ID，然后创建一个 `HandshakePayload` 对象，并将其转换为 JSON 格式发送到指定地址。之后，程序会阻塞等待服务器的响应，如果收到响应，则将其解析成 `HandshakeResponse` 对象并返回；否则在超时后返回错误信息。
+
+总的来说，该文件实现了一个基本的客户端-服务器握手流程，用于确保客户端与服务器之间建立连接的安全性和正确性。
 */
 
 package server

@@ -223,6 +223,7 @@ func (s *Server) OnNewConnection(conn *net2.TcpConnection) {
 */
 // TcpConnectionCallback 当连接接收到数据时调用
 func (s *Server) OnConnectionDataArrived(conn *net2.TcpConnection, msg interface{}) error {
+	// 将消息转换成 mtproto.MTPRawMessage 类型，如果转换失败则返回错误并记录日志
 	msg2, ok := msg.(*mtproto.MTPRawMessage)
 	if !ok {
 		err := fmt.Errorf("recv invalid MTPRawMessage: {peer: %s, msg: %v", conn, msg2)
@@ -232,13 +233,16 @@ func (s *Server) OnConnectionDataArrived(conn *net2.TcpConnection, msg interface
 
 	ctx, _ := conn.Context.(*connContext)
 
+	// 记录收到的消息以及连接信息到日志
 	logx.Infof("onConnectionDataArrived - receive data: {peer: %s, ctx: %s, msg: %s}", conn, ctx.DebugString(), msg2.DebugString())
 
+	// 判断消息是否为 HTTP 请求，并将上下文中的 isHttp 变量设置为 true
 	if msg2.ConnType() == codec.TRANSPORT_HTTP {
 		ctx.isHttp = true
 	}
 
 	var err error
+	// 判断消息是否已加密（通过 msg2.AuthKeyId() 函数），如果未加密，则调用 onUnencryptedMessage() 方法；否则，调用 onEncryptedMessage() 方法。
 	// 未加密的消息
 	if msg2.AuthKeyId() == 0 {
 		//if ctx.getState() == STATE_AUTH_KEY {
@@ -256,10 +260,13 @@ func (s *Server) OnConnectionDataArrived(conn *net2.TcpConnection, msg interface
 		//	conn.Close()
 		//} else {
 		//	if ctx.state != STATE_AUTH_KEY {
-		authKey := ctx.getAuthKey(msg2.AuthKeyId())
+		//已加密的消息
+		authKey := ctx.getAuthKey(msg2.AuthKeyId()) // 获取消息对应的认证密钥
 		if authKey == nil {
+			// 如果找不到相应的认证密钥，则进行查询操作
 			key := s.GetAuthKey(msg2.AuthKeyId())
 			if key == nil {
+				// 如果查询仍然找不到，则尝试从会话中获取
 				sessClient, err2 := s.session.getSessionClient(strconv.FormatInt(msg2.AuthKeyId(), 10))
 				if err2 != nil {
 					logx.Errorf("getSessionClient error: %v, {authKeyId: %d}", err2, msg2.AuthKeyId())
@@ -274,6 +281,7 @@ func (s *Server) OnConnectionDataArrived(conn *net2.TcpConnection, msg interface
 			}
 			// key := s.GetAuthKey(msg2.AuthKeyId())
 			if key == nil {
+				// 如果仍然找不到，则返回错误消息并关闭连接
 				err = fmt.Errorf("invalid auth_key_id: {%d}", msg2.AuthKeyId())
 				logx.Error("invalid auth_key_id: {%v} - {peer: %s, ctx: %s, msg: %s}", err, conn, ctx.DebugString(), msg2.DebugString())
 				var code = int32(-404)
@@ -283,11 +291,13 @@ func (s *Server) OnConnectionDataArrived(conn *net2.TcpConnection, msg interface
 				// conn.Close()
 				return err
 			}
+			// 如果找到了认证密钥，则创建一个新的 authKey 实例并保存到上下文和服务器中
 			authKey = newAuthKeyUtil(key)
 			s.PutAuthKey(key)
 			ctx.putAuthKey(authKey)
 		}
 
+		// 调用 onEncryptedMessage() 方法进行处理
 		err = s.onEncryptedMessage(ctx, conn, authKey, msg2)
 	}
 
@@ -432,29 +442,36 @@ func (s *Server) onUnencryptedMessage(ctx *connContext, conn *net2.TcpConnection
 7. 处理完毕后返回 nil，表示处理成功。
 */
 func (s *Server) onEncryptedMessage(ctx *connContext, conn *net2.TcpConnection, authKey *authKeyUtil, mmsg *mtproto.MTPRawMessage) error {
+	// 对mmsg.Payload进行AES-IGE解密，并将结果存储在变量mtpRwaData中
 	mtpRwaData, err := authKey.AesIgeDecrypt(mmsg.Payload[8:8+16], mmsg.Payload[24:])
 	if err != nil {
 		logx.Errorf("conn(%s) decrypt error: {%v}", conn.String(), err)
 		return err
 	}
 
+	// 从mtpRwaData中提取sessionId和authKeyId等信息
 	var (
 		sessionId = int64(binary.LittleEndian.Uint64(mtpRwaData[8:]))
+		// 如果当前会话的sessionId为0，则表示这是一个新的会话
+		// 需要将sessionId存储在ctx.sessionId中
 		isNew     = ctx.sessionId == 0
 		authKeyId = mmsg.AuthKeyId()
 	)
+	// 如果当前会话不是新会话，则需要检查sessionId是否与传入的sessionId相同
 	if isNew {
 		ctx.sessionId = sessionId
 	} else {
 		// check sessionId??
 	}
 
+	// 获取sessionClient实例
 	sessClient, err2 := s.session.getSessionClient(strconv.FormatInt(mmsg.AuthKeyId(), 10))
 	if err2 != nil {
 		logx.Errorf("conn(%s) getSessionClient error: %v, {authKeyId: %d}", conn.String(), err, mmsg.AuthKeyId())
 		return err2
 	}
 
+	// 如果当前会话为新会话，则调用s.authSessionMgr.AddNewSession方法创建新会话并发送SessionCreateSession请求
 	if isNew {
 		if s.authSessionMgr.AddNewSession(authKey, sessionId, conn.GetConnID()) {
 			sessClient.SessionCreateSession(context.Background(),
@@ -469,6 +486,7 @@ func (s *Server) onEncryptedMessage(ctx *connContext, conn *net2.TcpConnection, 
 		}
 	}
 
+	// 调用sessClient.SessionSendDataToSession方法将数据发送给相应会话
 	_, _ = sessClient.SessionSendDataToSession(context.Background(), &sessionpb.TLSessionSendDataToSession{
 		Data: &sessionpb.SessionClientData{
 			ServerId:  s.session.gatewayId,
@@ -480,7 +498,7 @@ func (s *Server) onEncryptedMessage(ctx *connContext, conn *net2.TcpConnection, 
 		},
 	})
 
-	return nil
+	return nil // 返回nil表示处理成功
 }
 
 func (s *Server) GetConnByConnID(id uint64) *net2.TcpConnection {
