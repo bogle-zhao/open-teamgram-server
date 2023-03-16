@@ -15,6 +15,16 @@
 //
 // Author: teamgramio (teamgram.io@gmail.com)
 //
+/**
+handshake.go 是 TeamGram 服务器的一部分，它实现了 WebSocket 连接建立时的握手过程。主要流程如下：
+
+客户端向服务器发送带有 "Upgrade" 和 "Connection" 头的 HTTP 请求，请求升级到 WebSocket 协议，并保持长连接。
+服务器收到请求后进行协议判断，如果不是 WebSocket 协议则返回错误信息。
+服务器生成一个随机字串作为握手过程中的 "Sec-WebSocket-Key" 头值，并将该值发送给客户端。
+客户端接收到服务器回应后，会根据规定的算法将服务器返回的 "Sec-WebSocket-Key" 与一个固定的字符串进行拼接并进行 SHA1 加密，然后将结果以 Base64 编码后再通过头部的 "Sec-WebSocket-Accept" 字段发送给服务器。
+服务器验证客户端发送的 "Sec-WebSocket-Accept" 字段是否正确，如果不正确则说明握手失败，关闭连接。如果正确则将握手成功的消息发送给客户端，并开始正式的数据传输。
+具体代码实现细节可以参考 handshake.go 的注释和代码实现。
+*/
 
 package server
 

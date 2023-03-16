@@ -24,6 +24,18 @@ import (
 	userpb "github.com/teamgram/teamgram-server/app/service/biz/user/user"
 )
 
+/**
+这段代码是一个 Telegram 服务端的 Go 语言实现中的 AccountCore 结构体的 AccountUpdateProfile 方法。该方法用于更新用户的个人资料信息，
+如用户的名称、姓氏和个人描述等。
+
+其中，通过调用 c.svcCtx.Dao.UserClient.UserGetImmutableUser 方法获取当前用户的不可变信息，并根据传入的参数进行更新。
+如果传入的参数中包含 about（个人描述）字段，它会检查其长度是否小于等于70个字符，并且允许为空。如果符合要求，就会将该字段更新到数据库中。
+
+如果传入的参数没有 about 字段，则会检查 first_name（名字）字段是否存在并且非空。如果 first_name 存在并且发生了改变，
+以及 last_name（姓氏）字段也有变化，就会将新的名字和姓氏更新到数据库中，并且使用 SyncUpdatesNotMe 方法通知其他相关用户有关此更改的更新。
+
+最后，方法返回更新后的用户信息。
+*/
 // AccountUpdateProfile
 // account.updateProfile#78515775 flags:# first_name:flags.0?string last_name:flags.1?string about:flags.2?string = User;
 func (c *AccountCore) AccountUpdateProfile(in *mtproto.TLAccountUpdateProfile) (*mtproto.User, error) {

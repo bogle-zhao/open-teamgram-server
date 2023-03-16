@@ -15,7 +15,15 @@
 //
 // Author: teamgramio (teamgram.io@gmail.com)
 //
+/**
+`github.com/teamgram/teamgram-server/app/interface/gateway/internal/server/server_tcp.go` 是 TeamGram 项目中的一个 TCP 服务器实现。该文件定义了 `ServerTCP` 结构体和其方法，用于接收并处理来自客户端的 TCP 连接请求。
 
+具体来说，`ServerTCP` 中的 `Start` 方法会监听指定的地址 (`IP:port`)，并在新连接到来时调用 `handleConnection` 方法处理每个连接。`handleConnection` 方法解析收到的数据，并根据协议进行相应的处理，例如发送心跳包、响应客户端请求等。
+
+此外，`ServerTCP` 还提供了一些辅助方法，如 `Send` 方法用于向客户端发送数据，`Broadcast` 方法用于广播数据给所有连接的客户端等。这些方法可以被业务逻辑层调用，完成与客户端的交互。
+
+总之，`server_tcp.go` 实现了 TeamGram 项目中的 TCP 服务端部分，并提供了一些基本的数据传输和处理功能。
+*/
 package server
 
 import (
@@ -192,8 +200,9 @@ func (ctx *connContext) DebugString() string {
 	return "{" + strings.Join(s, ",") + "}"
 }
 
+// TcpConnectionCallback 当有新连接建立时调用
 // OnNewConnection
-///////////////////////////////////////////////////////////////////////////////////////////////
+// /////////////////////////////////////////////////////////////////////////////////////////////
 func (s *Server) OnNewConnection(conn *net2.TcpConnection) {
 	ctx := newConnContext()
 	ctx.setClientIp(strings.Split(conn.RemoteAddr().String(), ":")[0])
@@ -202,6 +211,17 @@ func (s *Server) OnNewConnection(conn *net2.TcpConnection) {
 	conn.Context = ctx
 }
 
+/**
+这个函数是一个TCP连接数据到达时的回调函数，将收到的消息（msg）转换为MTPRawMessage类型。然后根据消息的AuthKeyId属性决定如何处理这条消息。
+
+	如果AuthKeyId为0，则说明这是未加密的原始消息，此时会调用onUnencryptedMessage函数进行处理。
+
+	如果AuthKeyId不为0，则说明这是加密的消息，需要使用正确的密钥进行解密。首先会检查ctx中是否存在对应的authKey，如果没有则从s中获取或者从sessionClient
+	中查询获得，并将其存储到ctx中。然后调用onEncryptedMessage对消息进行解密和处理。
+
+如果在处理过程中发生错误，则会记录日志、发送错误响应，并返回错误。
+*/
+// TcpConnectionCallback 当连接接收到数据时调用
 func (s *Server) OnConnectionDataArrived(conn *net2.TcpConnection, msg interface{}) error {
 	msg2, ok := msg.(*mtproto.MTPRawMessage)
 	if !ok {
@@ -219,6 +239,7 @@ func (s *Server) OnConnectionDataArrived(conn *net2.TcpConnection, msg interface
 	}
 
 	var err error
+	// 未加密的消息
 	if msg2.AuthKeyId() == 0 {
 		//if ctx.getState() == STATE_AUTH_KEY {
 		//	err = fmt.Errorf("invalid state STATE_AUTH_KEY: %d", ctx.getState())
@@ -273,6 +294,7 @@ func (s *Server) OnConnectionDataArrived(conn *net2.TcpConnection, msg interface
 	return err
 }
 
+// TcpConnectionCallback 当连接关闭时调用
 func (s *Server) OnConnectionClosed(conn *net2.TcpConnection) {
 	ctx, _ := conn.Context.(*connContext)
 	logx.Info("onServerConnectionClosed - {peer:%s, ctx:%s}", conn, ctx.DebugString())
@@ -292,7 +314,7 @@ func (s *Server) OnConnectionClosed(conn *net2.TcpConnection) {
 	}
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////////////////
 func (s *Server) onUnencryptedMessage(ctx *connContext, conn *net2.TcpConnection, mmsg *mtproto.MTPRawMessage) error {
 	logx.Info("receive unencryptedRawMessage: {peer: %s, ctx: %s, mmsg: %s}", conn, ctx.DebugString(), mmsg.DebugString())
 

@@ -15,6 +15,7 @@ Server:
   SendBuf: 65536
   ReceiveBuf: 65536
   Multicore: false
+  ServerName: gateway
 Session:
   Etcd:
     Hosts:

@@ -58,6 +58,15 @@ import (
    }
 */
 
+/**
+该代码定义了一个Server结构体，其中包含了一个GatewaySendDataToGateway的方法。这个方法接受一个context
+和一个gateway.TLGatewaySendDataToGateway类型的参数，返回一个mtproto.Bool和一个error类型的返回值。在这个方法中，
+首先打印了一条日志记录，并声明了一个authKey变量。
+
+然后通过调用s.authSessionMgr.FoundSessionConnIdList(in.AuthKeyId, in.SessionId)方法获取到connIdList（连接ID列表）
+以及authKey对象，如果connIdList为nil，则会打印一个错误日志并且返回一个BoolFalse值。之后对于每一个connId，在发送数据之前都进行了一些校验，
+比如是否可以发送数据等，然后调用了s.SendToClient方法将数据发送给客户端。如果发送成功则会打印结果并返回True，否则会打印错误信息并返回True。
+*/
 // GatewaySendDataToGateway
 // gateway.sendDataToGateway auth_key_id:long session_id:long payload:bytes = Bool;
 func (s *Server) GatewaySendDataToGateway(ctx context.Context, in *gateway.TLGatewaySendDataToGateway) (reply *mtproto.Bool, err error) {
